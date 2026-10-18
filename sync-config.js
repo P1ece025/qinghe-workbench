@@ -13,7 +13,7 @@
  * 3. autoPull：true = 打开网页时自动从云端拉取。
  */
 window.QINGHE_SYNC = {
-  token: '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',
+  token: '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',
   gistId: '21332279',
   autoPull: true
 };
