@@ -45,3 +45,4 @@
 /* 登录 / 注册切换 */
 .login-hint{flex-wrap:wrap}
 .login-hint .text-btn{margin-left:auto;font-size:11px}
+.sync-panel{grid-column:1/-1}
