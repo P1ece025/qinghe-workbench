@@ -355,11 +355,11 @@ async function applyPendingImport(){
   }catch(e){toast('导入失败：'+(e.message||'未知错误'));}
 }
 let syncBusy=false;
-function syncConfig(){const empty={token:'',gistId:'',autoPull:true,lastRemote:'',lastSyncedSignature:''};try{const value=JSON.parse(localStorage.getItem(SYNC_KEY));return value&&typeof value==='object'?{...empty,...value}:empty;}catch{return empty;}}
+function syncConfig(){const empty={token:'',gistId:'',autoPull:true,lastRemote:'',lastSyncedSignature:''};let stored={};try{const value=JSON.parse(localStorage.getItem(SYNC_KEY));if(value&&typeof value==='object')stored=value;}catch{}const config={...empty,...stored};const built=runtimeWindow?.QINGHE_SYNC&&typeof runtimeWindow.QINGHE_SYNC==='object'?runtimeWindow.QINGHE_SYNC:null;if(built){if(built.token)config.token=String(built.token);if(built.gistId)config.gistId=normalizeGistId(built.gistId);if(typeof built.autoPull==='boolean')config.autoPull=built.autoPull;}return config;}
 function saveSyncConfig(next){try{localStorage.setItem(SYNC_KEY,JSON.stringify(next));}catch{}}
 function syncSignature(value){const text=JSON.stringify({students:value.students,rules:value.rules,ruleHistory:value.ruleHistory});let h1=0x811c9dc5,h2=0x9e3779b9;for(let i=0;i<text.length;i++){const code=text.charCodeAt(i);h1=Math.imul(h1^code,16777619);h2=Math.imul(h2+code,2246822519);}return (h1>>>0).toString(16).padStart(8,'0')+(h2>>>0).toString(16).padStart(8,'0')+'-'+text.length;}
 function normalizeGistId(value){const text=String(value||'').trim();if(!text)return '';const match=text.match(/([a-f0-9]{20,})/i);if(match)return match[1];return text.split('/').filter(Boolean).pop()||'';}
-function captureSyncInputs(){const config=syncConfig();const token=$('#sync-token')?.value?.trim();const gistField=$('#sync-gist');const autoField=$('#sync-auto');if(token)config.token=token;if(gistField)config.gistId=normalizeGistId(gistField.value);if(autoField)config.autoPull=autoField.value!=='0';saveSyncConfig(config);return syncConfig();}
+function captureSyncInputs(){return syncConfig();}
 async function githubFetch(pathname,options={}){
   const config=syncConfig();
   if(!config.token)throw new Error('请先填写 GitHub Token。');
@@ -372,20 +372,23 @@ async function githubFetch(pathname,options={}){
   }
   return data;
 }
+async function findCloudGist(){
+  for(let page=1;page<=5;page++){
+    const gists=await githubFetch('/gists?per_page=100&page='+page);
+    if(!Array.isArray(gists)||!gists.length)return null;
+    const found=gists.find(gist=>gist&&gist.files&&gist.files['qinghe-data.json']);
+    if(found)return found;
+    if(gists.length<100)return null;
+  }
+  return null;
+}
 function syncSettingsPanel(){
   const config=syncConfig();
-  const configured=!!(config.token&&config.gistId);
-  const dirty=!!(configured&&(!config.lastSyncedSignature||syncSignature(state)!==config.lastSyncedSignature));
+  const hasToken=!!config.token;
+  const syncing=!!(config.token&&config.gistId);
+  const dirty=!!(syncing&&(!config.lastSyncedSignature||syncSignature(state)!==config.lastSyncedSignature));
   const last=config.lastRemote?new Date(config.lastRemote).toLocaleString('zh-CN'):'尚未同步';
-  return `<section class="panel sync-panel"><div class="panel-head"><h2>云端同步 · GitHub Gist</h2><small>${configured?(config.autoPull===false?'手动同步':'自动拉取 · 手动上传'):'未配置'}</small></div><div class="rule-body"><p>把整份数据保存到你自己 GitHub 账号下的私有 Gist：一台设备创建后，另一台设备填入相同的 Gist ID 和 Token，打开网页时自动拉取最新数据；「上传到云端」需要手动点击，避免误覆盖。</p><div class="form-grid"><label class="form-group"><span>GitHub Token</span><input id="sync-token" class="field" type="password" autocomplete="off" placeholder="${config.token?'已保存，留空则不修改':'ghp_… 或 github_pat_…'}"></label><label class="form-group"><span>Gist ID</span><input id="sync-gist" class="field" value="${esc(config.gistId||'')}" placeholder="留空则上传时自动创建私有 Gist"></label><label class="form-group"><span>自动拉取</span><select id="sync-auto" class="field"><option value="1" ${config.autoPull!==false?'selected':''}>打开网页时自动拉取</option><option value="0" ${config.autoPull===false?'selected':''}>仅手动拉取</option></select></label></div><div style="display:flex;gap:10px;flex-wrap:wrap;margin:18px 0">${btn('保存同步设置','save-sync','check')}${btn('上传到云端','sync-upload','upload','primary')}${btn('从云端拉取','sync-pull','download')}</div><p class="minor-label">状态：${config.token?'Token 已保存':'未配置 Token'} · ${config.gistId?'Gist '+esc(config.gistId.slice(0,10))+'…':'尚未创建 Gist'} · 最近同步：${esc(last)}${dirty?' · <b>本地有未上传修改</b>':''}</p><p class="minor-label">Token 需要 Gists 读写权限：Fine-grained Token 在 Account permissions → Gists 选 Read and write；Classic Token 勾选 gist。Token 只保存在当前浏览器，不会写进导出的 JSON。云端文件含材料正文与原件，请只放演示数据并使用私有 Gist。</p></div></section>`;
-}
-async function saveSyncSettings(){
-  const before=syncConfig();
-  const config=captureSyncInputs();
-  if(!config.token){toast('请填写 GitHub Token。');return;}
-  render();
-  toast('同步设置已保存。');
-  if(config.gistId&&(config.gistId!==before.gistId||!before.lastRemote))await pullCloud({manual:true});
+  return `<section class="panel sync-panel"><div class="panel-head"><h2>云端同步 · GitHub Gist</h2><small>${syncing?'自动拉取 · 手动上传':hasToken?'首次上传会创建 Gist':'未配置'}</small></div><div class="rule-body">${hasToken?'':'<div class="alert">'+icon('alert')+'<span>尚未配置云端同步。请打开网站目录中的 <b>sync-config.js</b>，填写 token 和 gistId 后重新上传到 GitHub；所有设备会共用这一份配置。</span></div>'}<p>所有设备共用程序内置的 GitHub 账户：打开网页时自动拉取最新数据；修改完成后点「上传到云端」保存，另一台设备刷新即可看到。</p><div style="display:flex;gap:10px;flex-wrap:wrap;margin:18px 0">${btn('上传到云端','sync-upload','upload','primary',hasToken?'':'disabled')}${dirty?btn('拉取云端覆盖本地','sync-pull','download','small'):''}</div><p class="minor-label">状态：${hasToken?'Token 已内置':'未配置 Token'} · ${config.gistId?'Gist '+esc(config.gistId.slice(0,10))+'…':'首次上传时自动查找或创建云端备份'} · 最近同步：${esc(last)}${dirty?' · <b>本地有未上传修改</b>':''}</p><p class="minor-label">Token 写在 sync-config.js 中并随网站公开，请只使用仅含 Gists 读写权限的专用账号 Token，并设置有效期；云端文件含材料正文，请只放演示数据。</p></div></section>`;
 }
 async function uploadCloud(force=false){
   const config=captureSyncInputs();
@@ -393,6 +396,10 @@ async function uploadCloud(force=false){
   if(syncBusy){toast('正在同步，请稍候。');return;}
   syncBusy=true;
   try{
+    if(!config.gistId){
+      const existing=await findCloudGist();
+      if(existing){config.gistId=existing.id;const stored=syncConfig();stored.gistId=existing.id;saveSyncConfig(stored);}
+    }
     if(config.gistId&&!force){
       const remote=await githubFetch('/gists/'+config.gistId);
       if(remote.updated_at&&remote.updated_at!==config.lastRemote){
@@ -407,22 +414,29 @@ async function uploadCloud(force=false){
     if(config.gistId)gist=await githubFetch('/gists/'+config.gistId,{method:'PATCH',body:JSON.stringify({files:{'qinghe-data.json':{content}}})});
     else gist=await githubFetch('/gists',{method:'POST',body:JSON.stringify({description:'青禾工作台云端备份（私有，请勿公开）',public:false,files:{'qinghe-data.json':{content}}})});
     const next=syncConfig();
+    const created=!config.gistId;
     next.token=config.token;next.gistId=gist.id||config.gistId;next.autoPull=config.autoPull;next.lastRemote=gist.updated_at||new Date().toISOString();next.lastSyncedSignature=syncSignature(state);
     saveSyncConfig(next);
     log('上传云端备份','Gist '+(next.gistId||'').slice(0,10)+'… · '+(content.length/1024).toFixed(0)+' KB'+(skipped?' · '+skipped+' 份原件读取失败':''));
     render();
-    toast('已上传到云端（'+(content.length/1024).toFixed(0)+' KB）。另一台设备打开网页会自动拉取。');
+    toast(created?'已创建私有 Gist：'+next.gistId+'。其他设备使用同一个 Token 打开网页会自动找到它，无需再填 Gist ID。':'已上传到云端（'+(content.length/1024).toFixed(0)+' KB）。另一台设备打开网页会自动拉取。');
   }catch(e){toast('云端上传失败：'+e.message);}
   finally{syncBusy=false;}
 }
 async function pullCloud(options={}){
   const manual=!!options.manual;
   const config=captureSyncInputs();
-  if(!config.token||!config.gistId){if(manual)toast('请先填写 GitHub Token 并保存或创建 Gist。');return false;}
+  if(!config.token){if(manual)toast('尚未配置云端同步，请先在 sync-config.js 中填写 Token。');return false;}
   if(syncBusy){if(manual)toast('正在同步，请稍候。');return false;}
   syncBusy=true;
   try{
-    const gist=await githubFetch('/gists/'+config.gistId);
+    let gist;
+    if(config.gistId)gist=await githubFetch('/gists/'+config.gistId);
+    else{
+      gist=await findCloudGist();
+      if(!gist){if(manual)toast('云端还没有备份，请先点「上传到云端」创建。');return false;}
+      const stored=syncConfig();stored.gistId=gist.id;saveSyncConfig(stored);
+    }
     if(!manual&&config.lastRemote&&gist.updated_at===config.lastRemote)return false;
     const file=gist.files&&gist.files['qinghe-data.json'];
     if(!file)throw new Error('Gist 中没有 qinghe-data.json');
@@ -455,7 +469,7 @@ async function pullCloud(options={}){
 }
 async function syncAutoPull(){
   const config=syncConfig();
-  if(!config.token||!config.gistId||config.autoPull===false)return;
+  if(!config.token||config.autoPull===false)return;
   await pullCloud({manual:false});
 }
 const actions={
@@ -475,7 +489,6 @@ const actions={
  'export-csv':()=>download('青禾-学生材料清单.csv',csv([['姓名（虚拟）','学号','学院','发展阶段','材料已登记','材料要求','待处理问题','材料核验状态','审核流程状态'],...filtered().map(s=>[s.name,s.number,s.college,Q.STAGES[s.stage],Q.completeness(s).actual,Q.completeness(s).expected,s.checked?openIssues(s).length:'待校验',Q.materialStatus(s,state.rules),s.status])]),'text/csv;charset=utf-8'),
  'export-issues':()=>download('青禾-待处理问题.csv',csv([['学生（虚拟）','类别','问题','详情','建议','规则依据'],...allOpen().map(i=>[state.students.find(s=>s.id===i.studentId).name,i.category,i.title,i.detail,i.suggestion,i.rule])]),'text/csv;charset=utf-8'),
  'export-data':()=>exportBackup(),
- 'save-sync':()=>saveSyncSettings(),
  'sync-upload':()=>uploadCloud(false),
  'sync-upload-force':()=>uploadCloud(true),
  'sync-pull':()=>pullCloud({manual:true}),
