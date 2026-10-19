@@ -46,3 +46,32 @@
 .login-hint{flex-wrap:wrap}
 .login-hint .text-btn{margin-left:auto;font-size:11px}
 .sync-panel{grid-column:1/-1}
+/* 注册页（参照双栏表单版式） */
+.register-wrap{padding:40px 24px}
+.register-card{width:780px;padding:34px 40px 30px;gap:15px}
+.register-card h1{font-size:20px}
+.register-card .login-sub{margin-bottom:4px}
+.reg-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 22px}
+.reg-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.reg-field.full{grid-column:1/-1}
+.reg-label{font-size:12px;color:#4f6156;font-weight:500;display:flex;align-items:center;gap:6px}
+.reg-label em{font-style:normal;font-size:10px;font-weight:400;padding:1px 6px;border-radius:3px;line-height:1.5}
+.reg-label .req{color:#b4545a;background:#fbefef}
+.reg-label .opt{color:#8d9b91;background:#f2f5f2}
+.reg-field .field{padding:10px 12px;font-size:12px;width:100%}
+.reg-hint{font-size:10px;color:#9aa79e;line-height:1.5}
+.reg-divider{display:flex;align-items:center;gap:14px;color:#9aa79e;font-size:11px;margin:6px 0 2px}
+.reg-divider:before,.reg-divider:after{content:'';height:1px;background:#edf0ec;flex:1}
+.login-switch{text-align:center;font-size:11px;color:#8d9b91}
+.login-switch .text-btn{font-size:11px;padding:2px 4px}
+.register-card .login-btn{margin-top:4px;padding:12px 14px;font-size:14px;letter-spacing:1px}
+.register-card .login-foot{text-align:center;margin-top:0}
+@media(max-width:820px){.register-card{width:100%;padding:28px 22px}.reg-grid{grid-template-columns:1fr;gap:14px}.reg-field.full{grid-column:auto}}
+.auth-card{width:560px;padding:34px 38px 30px;gap:15px}
+.auth-card h1{font-size:20px}
+.auth-card .login-sub{margin-bottom:4px}
+.auth-card .login-btn{margin-top:4px;padding:12px 14px;font-size:14px;letter-spacing:1px}
+.auth-card .login-foot{text-align:center;margin-top:0}
+.reg-grid-single{grid-template-columns:1fr}
+@media(max-width:820px){.auth-card{width:100%;padding:28px 22px}}
+.ai-panel{grid-column:1/-1}
